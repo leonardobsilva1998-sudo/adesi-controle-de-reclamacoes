@@ -61,6 +61,7 @@ const MARKUP=`
       <h2 id="h-lista">Reclamações</h2>
       <div class="filters">
         <span id="active-filter"></span>
+        <button class="chip arq-toggle" id="btn-arq" type="button"></button>
         <select class="search mes" id="mes" aria-label="Filtrar por mês"><option value="">Todos os meses</option></select>
         <input class="search" id="q" type="search" placeholder="Buscar empresa ou pedido" aria-label="Buscar empresa ou pedido">
       </div>
@@ -81,6 +82,7 @@ const MARKUP=`
         <h2 id="h-docs">Documentações para clientes</h2>
         <div class="filters">
           <span id="d-active-filter"></span>
+          <button class="chip arq-toggle" id="d-btn-arq" type="button"></button>
           <input class="search" id="dq" type="search" placeholder="Buscar cliente ou documento" aria-label="Buscar documentações">
         </div>
       </div>
@@ -162,10 +164,27 @@ const $=s=>document.querySelector(s);
 const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 let filtroMes="";
 function mesDe(r){return (r.abertura||"").slice(0,7)}
-function doMes(){return filtroMes?items.filter(r=>mesDe(r)===filtroMes):items}
+let verArq=false,dVerArq=false;
+function baseRec(){return items.filter(r=>!!r.arquivado===verArq)}
+function doMes(){const b=baseRec();return filtroMes?b.filter(r=>mesDe(r)===filtroMes):b}
+function textoArq(btn,lista,ver){const n=lista.filter(x=>x.arquivado).length;btn.textContent=ver?"← Voltar às ativas":"Ver arquivadas ("+n+")";btn.setAttribute("aria-pressed",String(ver))}
+function botaoArquivar(el,r,concluida,tabela){
+  const b=el.querySelector(".row-btn.arq");
+  if(r.arquivado){b.textContent="Desarquivar";b.hidden=false}
+  else if(concluida){b.textContent="Arquivar";b.hidden=false}
+  else return;
+  b.onclick=async()=>{
+    if(!editor)return;
+    b.disabled=true;
+    const {error}=await sb.from(tabela).update({arquivado:!r.arquivado}).eq("id",r.id);
+    if(error){b.disabled=false;toast(/arquivado/.test(error.message||"")?"Falta atualizar o banco: rode o script de arquivamento no Supabase.":erroMsg(error));return}
+    toast(r.arquivado?"Desarquivado":"Arquivado");
+    if(tabela==="reclamacoes")await carregarReclamacoes();else await carregarDocs();
+  };
+}
 function atualizarMeses(){
   const sel=$("#mes");if(!sel)return;
-  const set=new Set(items.map(mesDe).filter(Boolean));if(filtroMes)set.add(filtroMes);
+  const set=new Set(baseRec().map(mesDe).filter(Boolean));if(filtroMes)set.add(filtroMes);
   const lista=[...set].sort().reverse();
   sel.textContent="";
   const t=document.createElement("option");t.value="";t.textContent="Todos os meses";sel.appendChild(t);
@@ -218,17 +237,19 @@ function renderList(){
   const af=$("#active-filter");af.textContent="";
   const label=filtroSetor?SETORES.find(s=>s.id===filtroSetor).nome:(filtroStatus?STATUS[filtroStatus]:"");
   if(label){const c=document.createElement("button");c.type="button";c.className="chip";c.textContent=label+"  ✕";c.setAttribute("aria-label","Limpar filtro "+label);c.onclick=()=>{filtroSetor="";filtroStatus="";render()};af.appendChild(c)}
+  textoArq($("#btn-arq"),items,verArq);
   const box=$("#items");box.textContent="";
   if(!list.length){const e=document.createElement("div");e.className="empty";
-    e.textContent=items.length?(filtroMes?"Nenhuma reclamação neste mês com esse filtro.":"Nenhuma reclamação neste filtro."):"Nenhuma reclamação cadastrada ainda. Use “+ Nova reclamação” para registrar a primeira.";box.appendChild(e);return}
+    e.textContent=verArq?"Nenhuma reclamação arquivada"+(filtroMes||q||label?" neste filtro.":"."):items.length?(filtroMes?"Nenhuma reclamação neste mês com esse filtro.":"Nenhuma reclamação neste filtro."):"Nenhuma reclamação cadastrada ainda. Use “+ Nova reclamação” para registrar a primeira.";box.appendChild(e);return}
   list.forEach(r=>{
     const el=document.createElement("article");el.className="item"+(r.status==="concluida"?" done":(r.status==="andamento"?" prog":(r.status==="aguardando"?" late":"")));
     const setor=SETORES.find(s=>s.id===r.setor);
-    el.innerHTML=`<div class="who"></div><button class="row-btn" type="button">Editar</button><div class="what"></div><div class="meta">${prazoTag(r)}${r.status!=="concluida"?`<span class="tag${r.status==="aguardando"?" wait":(r.status==="andamento"?" prog":"")}">${STATUS[r.status]}</span>`:""}${setor?`<span class="tag"></span>`:""}${r.abertura?`<span class="tag">Aberta ${fmt(r.abertura)}</span>`:""}</div>`;
+    el.innerHTML=`<div class="who"></div><div class="row-actions"><button class="row-btn arq" type="button" hidden></button><button class="row-btn ed" type="button">Editar</button></div><div class="what"></div><div class="meta">${prazoTag(r)}${r.status!=="concluida"?`<span class="tag${r.status==="aguardando"?" wait":(r.status==="andamento"?" prog":"")}">${STATUS[r.status]}</span>`:""}${setor?`<span class="tag"></span>`:""}${r.abertura?`<span class="tag">Aberta ${fmt(r.abertura)}</span>`:""}</div>`;
     el.querySelector(".who").textContent=r.cliente+(r.pedido?" · "+r.pedido:"");
     el.querySelector(".what").textContent=r.desc||"";
     if(setor)el.querySelector(".meta .tag:nth-child("+(r.status!=="concluida"?3:2)+")").textContent="Setor: "+setor.nome;
-    el.querySelector(".row-btn").onclick=()=>openForm(r);
+    el.querySelector(".row-btn.ed").onclick=()=>openForm(r);
+    botaoArquivar(el,r,r.status==="concluida","reclamacoes");
     box.appendChild(el);
   });
 }
@@ -237,6 +258,7 @@ function render(){atualizarMeses();renderStats();renderSectors();renderList()}
 document.querySelectorAll(".stat[data-status]").forEach(b=>b.onclick=()=>{filtroSetor="";filtroStatus=filtroStatus===b.dataset.status?"":b.dataset.status;render()});
 $("#q").oninput=renderList;
 $("#mes").onchange=e=>{filtroMes=e.target.value;render()};
+$("#btn-arq").onclick=()=>{verArq=!verArq;filtroMes="";filtroSetor="";filtroStatus="";render()};
 
 function openForm(r){
   editId=r?r.id:null;delArmed=false;
@@ -304,24 +326,26 @@ mostrarAba(location.hash.slice(1));
 // ================= Documentações para clientes =================
 let docs=[],dFiltro="",dEditId=null,dDelArmed=false;
 function renderDocs(){
-  $("#d-total").textContent=docs.length;
-  $("#d-pendente").textContent=docs.filter(d=>d.status!=="concluido").length;
-  $("#d-concluido").textContent=docs.filter(d=>d.status==="concluido").length;
+  const base=docs.filter(d=>!!d.arquivado===dVerArq);
+  $("#d-total").textContent=base.length;
+  $("#d-pendente").textContent=base.filter(d=>d.status!=="concluido").length;
+  $("#d-concluido").textContent=base.filter(d=>d.status==="concluido").length;
   document.querySelectorAll("[data-dstatus]").forEach(b=>b.setAttribute("aria-pressed",String(dFiltro!==""&&b.dataset.dstatus===dFiltro)));
   const q=$("#dq").value.trim().toLowerCase();
-  let list=docs.slice();
+  let list=base.slice();
   if(dFiltro)list=list.filter(d=>(d.status==="concluido"?"concluido":"pendente")===dFiltro);
   if(q)list=list.filter(d=>(d.cliente+" "+(d.documentos||"")+" "+(d.obs||"")).toLowerCase().includes(q));
   list.sort((a,b)=>(a.status==="concluido")-(b.status==="concluido")||(b.solicitado||"").localeCompare(a.solicitado||""));
   const af=$("#d-active-filter");af.textContent="";
   if(dFiltro){const c=document.createElement("button");c.type="button";c.className="chip";const l=dFiltro==="pendente"?"Pendentes":"Concluídas";c.textContent=l+"  ✕";c.setAttribute("aria-label","Limpar filtro "+l);c.onclick=()=>{dFiltro="";renderDocs()};af.appendChild(c)}
+  textoArq($("#d-btn-arq"),docs,dVerArq);
   const box=$("#d-items");box.textContent="";
   if(!list.length){const e=document.createElement("div");e.className="empty";
-    e.textContent=docs.length?"Nenhuma solicitação neste filtro.":"Nenhuma solicitação de documentos ainda. Use “+ Nova solicitação” para registrar a primeira.";box.appendChild(e);return}
+    e.textContent=dVerArq?"Nenhuma solicitação arquivada.":docs.length?"Nenhuma solicitação neste filtro.":"Nenhuma solicitação de documentos ainda. Use “+ Nova solicitação” para registrar a primeira.";box.appendChild(e);return}
   list.forEach(d=>{
     const ok=d.status==="concluido";
     const el=document.createElement("article");el.className="item "+(ok?"done":"pend");
-    el.innerHTML=`<div class="who"></div><button class="row-btn" type="button">Editar</button><div class="meta"><span class="tag ${ok?"ok":"pend"}">${ok?"Concluído":"Pendente"}</span>${d.solicitado?`<span class="tag">Solicitado ${fmt(d.solicitado)}</span>`:""}${d.enviado?`<span class="tag">Enviado ${fmt(d.enviado)}</span>`:`<span class="tag">Ainda não enviado</span>`}</div>`;
+    el.innerHTML=`<div class="who"></div><div class="row-actions"><button class="row-btn arq" type="button" hidden></button><button class="row-btn ed" type="button">Editar</button></div><div class="meta"><span class="tag ${ok?"ok":"pend"}">${ok?"Concluído":"Pendente"}</span>${d.solicitado?`<span class="tag">Solicitado ${fmt(d.solicitado)}</span>`:""}${d.enviado?`<span class="tag">Enviado ${fmt(d.enviado)}</span>`:`<span class="tag">Ainda não enviado</span>`}</div>`;
     el.querySelector(".who").textContent=d.cliente;
     if(d.documentos){
       const w=document.createElement("div");w.className="docs-list";
@@ -330,12 +354,14 @@ function renderDocs(){
       el.appendChild(w);
     }
     if(d.obs){const o=document.createElement("div");o.className="obs";o.textContent=d.obs;el.appendChild(o)}
-    el.querySelector(".row-btn").onclick=()=>openDoc(d);
+    el.querySelector(".row-btn.ed").onclick=()=>openDoc(d);
+    botaoArquivar(el,d,ok,"documentacoes");
     box.appendChild(el);
   });
 }
 document.querySelectorAll("[data-dstatus]").forEach(b=>b.onclick=()=>{dFiltro=dFiltro===b.dataset.dstatus?"":b.dataset.dstatus;renderDocs()});
 $("#dq").oninput=renderDocs;
+$("#d-btn-arq").onclick=()=>{dVerArq=!dVerArq;dFiltro="";renderDocs()};
 
 function openDoc(d){
   dEditId=d?d.id:null;dDelArmed=false;
