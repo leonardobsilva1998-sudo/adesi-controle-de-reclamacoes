@@ -62,6 +62,7 @@ const MARKUP=`
       <div class="filters">
         <span id="active-filter"></span>
         <button class="chip arq-toggle" id="btn-arq" type="button"></button>
+        <button class="chip print-btn" id="btn-rel" type="button">Imprimir relatório</button>
         <select class="search mes" id="mes" aria-label="Filtrar por mês"><option value="">Todos os meses</option></select>
         <input class="search" id="q" type="search" placeholder="Buscar empresa ou pedido" aria-label="Buscar empresa ou pedido">
       </div>
@@ -147,6 +148,30 @@ const MARKUP=`
     </div>
   </form>
 </div>
+<div class="overlay" id="r-overlay" hidden>
+  <form class="modal" id="r-form" novalidate>
+    <h3>Imprimir relatório de reclamações</h3>
+    <div class="grid2">
+      <label for="r-mes">Mês<select id="r-mes"></select></label>
+      <label for="r-cliente">Cliente<select id="r-cliente"></select></label>
+    </div>
+    <label for="r-status">Situação<select id="r-status">
+      <option value="">Todas</option>
+      <option value="abertas">Só em aberto (em andamento e aguardando retorno)</option>
+      <option value="concluida">Só concluídas</option>
+    </select></label>
+    <label class="check" for="r-arq"><input id="r-arq" type="checkbox"> Incluir reclamações arquivadas</label>
+    <p class="note" id="r-conta"></p>
+    <div class="actions">
+      <div class="right">
+        <button class="btn ghost" id="r-cancel" type="button">Cancelar</button>
+        <button class="btn verde" type="submit">Imprimir</button>
+      </div>
+    </div>
+    <p class="note">Na janela de impressão, escolha "Salvar como PDF" para guardar ou enviar o relatório.</p>
+  </form>
+</div>
+<section class="relatorio" id="relatorio"></section>
 <div class="toast" id="toast" hidden></div>
 
 `;
@@ -460,4 +485,68 @@ $("#btn-conta").onclick=async()=>{if(editor){await sb.auth.signOut();toast("Voc�
 
 // Atualiza os prazos à meia-noite sem recarregar
 setInterval(()=>{if($("#overlay").hidden)renderList()},60000);
+
+// ================= Relatório para impressão =================
+function nomeMes(m){return MESES[+m.slice(5,7)-1]+" de "+m.slice(0,4)}
+function relFiltrados(){
+  const mes=$("#r-mes").value,cli=$("#r-cliente").value,st=$("#r-status").value,arq=$("#r-arq").checked;
+  let l=items.filter(r=>arq||!r.arquivado);
+  if(mes)l=l.filter(r=>mesDe(r)===mes);
+  if(cli)l=l.filter(r=>r.cliente===cli);
+  if(st==="abertas")l=l.filter(r=>r.status!=="concluida");else if(st)l=l.filter(r=>r.status===st);
+  return l.sort((a,b)=>(a.abertura||"").localeCompare(b.abertura||"")||a.cliente.localeCompare(b.cliente));
+}
+function relContar(){const n=relFiltrados().length;$("#r-conta").textContent=n?(n===1?"1 reclamação vai entrar no relatório.":n+" reclamações vão entrar no relatório."):"Nenhuma reclamação com esses filtros."}
+function opcoes(sel,lista,todos){sel.textContent="";const t=document.createElement("option");t.value="";t.textContent=todos;sel.appendChild(t);lista.forEach(([v,l])=>{const o=document.createElement("option");o.value=v;o.textContent=l;sel.appendChild(o)})}
+$("#btn-rel").onclick=()=>{
+  const meses=[...new Set(items.map(mesDe).filter(Boolean))].sort().reverse();
+  opcoes($("#r-mes"),meses.map(m=>[m,nomeMes(m)]),"Todos os meses");
+  const clientes=[...new Set(items.map(r=>r.cliente).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  opcoes($("#r-cliente"),clientes.map(c=>[c,c]),"Todos os clientes");
+  $("#r-mes").value=filtroMes||"";$("#r-status").value="";$("#r-arq").checked=verArq;
+  relContar();$("#r-overlay").hidden=false;$("#r-mes").focus();
+};
+["#r-mes","#r-cliente","#r-status","#r-arq"].forEach(id=>$(id).addEventListener("change",relContar));
+function fecharRel(){$("#r-overlay").hidden=true}
+$("#r-cancel").onclick=fecharRel;
+$("#r-overlay").addEventListener("click",e=>{if(e.target.id==="r-overlay")fecharRel()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#r-overlay").hidden)fecharRel()});
+function situacaoTxt(r){
+  if(r.status==="concluida")return"Concluída";
+  let t=STATUS[r.status]||r.status;
+  if(r.retorno){const d=diasAte(r.retorno);if(d<0)t+=" · atrasada "+(-d)+(d===-1?" dia":" dias")}
+  return t;
+}
+$("#r-form").addEventListener("submit",e=>{
+  e.preventDefault();
+  const lista=relFiltrados();
+  if(!lista.length){relContar();return}
+  const mes=$("#r-mes").value,cli=$("#r-cliente").value,st=$("#r-status").value;
+  const filtros=[mes?nomeMes(mes):"Todos os meses",cli||"Todos os clientes",st==="abertas"?"Só em aberto":st?"Só concluídas":"Todas as situações"];
+  if($("#r-arq").checked)filtros.push("inclui arquivadas");
+  const c=k=>lista.filter(r=>r.status===k).length;
+  const rel=$("#relatorio");rel.textContent="";
+  const h=document.createElement("header");h.className="rel-head";
+  h.innerHTML='<img src="logo.png" alt="Adesi Coating"><div><h1>Relatório de Reclamações</h1><p class="rel-filtros"></p><p class="rel-data"></p></div>';
+  h.querySelector(".rel-filtros").textContent=filtros.join(" · ");
+  const agora=new Date();h.querySelector(".rel-data").textContent="Gerado em "+agora.toLocaleDateString("pt-BR")+" às "+agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  rel.appendChild(h);
+  const res=document.createElement("div");res.className="rel-resumo";
+  [["Total",lista.length],["Em andamento",c("andamento")],["Aguardando retorno",c("aguardando")],["Concluídas",c("concluida")]].forEach(([l,n])=>{const d=document.createElement("div");const b=document.createElement("strong");b.textContent=n;const sp=document.createElement("span");sp.textContent=l;d.append(b,sp);res.appendChild(d)});
+  rel.appendChild(res);
+  const t=document.createElement("table");
+  t.innerHTML="<thead><tr><th>Cliente</th><th>Pedido</th><th>Descrição</th><th>Abertura</th><th>Retorno</th><th>Situação</th><th>Setor</th></tr></thead><tbody></tbody>";
+  const tb=t.querySelector("tbody");
+  lista.forEach(r=>{
+    const tr=document.createElement("tr");
+    const setor=SETORES.find(s=>s.id===r.setor);
+    [r.cliente,r.pedido||"",r.desc||"",fmt(r.abertura),fmt(r.retorno),situacaoTxt(r),setor?setor.nome:""].forEach((v,i)=>{const td=document.createElement("td");td.textContent=v;if(i===2)td.className="desc";tr.appendChild(td)});
+    tb.appendChild(tr);
+  });
+  rel.appendChild(t);
+  fecharRel();
+  const img=h.querySelector("img");
+  const imprimir=()=>setTimeout(()=>window.print(),50);
+  if(img.complete)imprimir();else{img.onload=imprimir;img.onerror=imprimir}
+});
 

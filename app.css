@@ -147,3 +147,29 @@ textarea{min-height:90px;resize:vertical}
 .chip.arq-toggle[aria-pressed="true"]{color:var(--fg);border-color:var(--fg)}
 .pubnote{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .pubnote .chip{border-color:var(--adesi-azul);color:var(--adesi-azul)}
+
+/* ===== Relatório para impressão ===== */
+.chip.print-btn{border-color:var(--adesi);color:var(--adesi)}
+label.check{flex-direction:row;align-items:center;gap:10px;color:var(--fg);font-weight:500;cursor:pointer}
+label.check input{width:18px;height:18px;margin:0;accent-color:var(--adesi)}
+.relatorio{display:none}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  html,body{background:#fff!important;color:#111!important;padding:0!important}
+  body>*{display:none!important}
+  body>.relatorio{display:block!important;font-family:var(--font);color:#111;font-size:10.5pt}
+  .rel-head{display:flex;align-items:center;gap:18px;padding-bottom:10px;border-bottom:3px solid #66ab35;margin-bottom:12px}
+  .rel-head img{height:46px;width:auto}
+  .rel-head h1{margin:0;font-size:17pt;color:#8a7356;font-weight:600}
+  .rel-head p{margin:2px 0 0;color:#444;font-size:9.5pt}
+  .rel-resumo{display:flex;gap:28px;margin:0 0 12px}
+  .rel-resumo div{display:flex;align-items:baseline;gap:6px}
+  .rel-resumo strong{font-size:14pt}
+  .rel-resumo span{color:#444}
+  .relatorio table{width:100%;border-collapse:collapse}
+  .relatorio th{text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.03em;color:#333;border-bottom:1.5px solid #333;padding:6px 6px}
+  .relatorio td{border-bottom:1px solid #ccc;padding:6px;vertical-align:top}
+  .relatorio td.desc{white-space:pre-line;width:38%}
+  .relatorio tr{break-inside:avoid}
+  .relatorio thead{display:table-header-group}
+}
