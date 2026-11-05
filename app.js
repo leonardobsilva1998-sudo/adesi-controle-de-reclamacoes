@@ -61,7 +61,8 @@ const MARKUP=`
       <h2 id="h-lista">Reclamações</h2>
       <div class="filters">
         <span id="active-filter"></span>
-        <input class="search" id="q" type="search" placeholder="Buscar cliente ou pedido" aria-label="Buscar">
+        <select class="search mes" id="mes" aria-label="Filtrar por mês"><option value="">Todos os meses</option></select>
+        <input class="search" id="q" type="search" placeholder="Buscar empresa ou pedido" aria-label="Buscar empresa ou pedido">
       </div>
     </div>
     <div class="items" id="items"></div>
@@ -157,6 +158,20 @@ const SETORES=[
 ];
 const STATUS={andamento:"Em andamento",aguardando:"Aguardando retorno",concluida:"Concluída"};
 const $=s=>document.querySelector(s);
+// Filtro por mês (pela data da reclamação)
+const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+let filtroMes="";
+function mesDe(r){return (r.abertura||"").slice(0,7)}
+function doMes(){return filtroMes?items.filter(r=>mesDe(r)===filtroMes):items}
+function atualizarMeses(){
+  const sel=$("#mes");if(!sel)return;
+  const set=new Set(items.map(mesDe).filter(Boolean));if(filtroMes)set.add(filtroMes);
+  const lista=[...set].sort().reverse();
+  sel.textContent="";
+  const t=document.createElement("option");t.value="";t.textContent="Todos os meses";sel.appendChild(t);
+  lista.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=MESES[+m.slice(5,7)-1]+" de "+m.slice(0,4);sel.appendChild(o)});
+  sel.value=filtroMes;
+}
 let items=[], filtroSetor="", filtroStatus="", editId=null, delArmed=false, db=null, col=null;
 
 SETORES.forEach(s=>{const o=document.createElement("option");o.value=s.id;o.textContent=s.nome;$("#f-setor").appendChild(o)});
@@ -170,7 +185,7 @@ const aguardandoSetor=(r,s)=>r.status==="aguardando"&&r.setor===s;
 function renderSectors(){
   const box=$("#sectors");box.textContent="";
   SETORES.forEach(s=>{
-    const n=items.filter(r=>aguardandoSetor(r,s.id)).length;
+    const n=doMes().filter(r=>aguardandoSetor(r,s.id)).length;
     const b=document.createElement("button");b.type="button";b.className="sector";b.setAttribute("aria-pressed",String(filtroSetor===s.id));
     b.innerHTML=`<div class="top"><span class="t"></span><span class="pill${n?"":" zero"}">${n} ${n===1?"pendente":"pendentes"}</span></div><div class="d"><svg class="i"><use href="#${s.icon}"/></svg><span></span></div>`;
     b.querySelector(".t").textContent=s.nome;b.querySelector(".d span").textContent=s.desc;
@@ -179,8 +194,8 @@ function renderSectors(){
   });
 }
 function renderStats(){
-  $("#s-total").textContent=items.length;
-  ["andamento","aguardando","concluida"].forEach(k=>$("#s-"+k).textContent=items.filter(r=>r.status===k).length);
+  $("#s-total").textContent=doMes().length;
+  ["andamento","aguardando","concluida"].forEach(k=>$("#s-"+k).textContent=doMes().filter(r=>r.status===k).length);
   document.querySelectorAll(".stat[data-status]").forEach(b=>b.setAttribute("aria-pressed",String(!filtroSetor&&b.dataset.status===filtroStatus&&filtroStatus!=="")));
 }
 function prazoTag(r){
@@ -194,7 +209,7 @@ function prazoTag(r){
 }
 function renderList(){
   const q=$("#q").value.trim().toLowerCase();
-  let list=items.slice();
+  let list=doMes().slice();
   if(filtroSetor)list=list.filter(r=>aguardandoSetor(r,filtroSetor));
   else if(filtroStatus)list=list.filter(r=>r.status===filtroStatus);
   if(q)list=list.filter(r=>(r.cliente+" "+(r.pedido||"")+" "+(r.desc||"")).toLowerCase().includes(q));
@@ -205,7 +220,7 @@ function renderList(){
   if(label){const c=document.createElement("button");c.type="button";c.className="chip";c.textContent=label+"  ✕";c.setAttribute("aria-label","Limpar filtro "+label);c.onclick=()=>{filtroSetor="";filtroStatus="";render()};af.appendChild(c)}
   const box=$("#items");box.textContent="";
   if(!list.length){const e=document.createElement("div");e.className="empty";
-    e.textContent=items.length?"Nenhuma reclamação neste filtro.":"Nenhuma reclamação cadastrada ainda. Use “+ Nova reclamação” para registrar a primeira.";box.appendChild(e);return}
+    e.textContent=items.length?(filtroMes?"Nenhuma reclamação neste mês com esse filtro.":"Nenhuma reclamação neste filtro."):"Nenhuma reclamação cadastrada ainda. Use “+ Nova reclamação” para registrar a primeira.";box.appendChild(e);return}
   list.forEach(r=>{
     const el=document.createElement("article");el.className="item"+(r.status==="concluida"?" done":(r.status==="andamento"?" prog":(r.status==="aguardando"?" late":"")));
     const setor=SETORES.find(s=>s.id===r.setor);
@@ -217,10 +232,11 @@ function renderList(){
     box.appendChild(el);
   });
 }
-function render(){renderStats();renderSectors();renderList()}
+function render(){atualizarMeses();renderStats();renderSectors();renderList()}
 
 document.querySelectorAll(".stat[data-status]").forEach(b=>b.onclick=()=>{filtroSetor="";filtroStatus=filtroStatus===b.dataset.status?"":b.dataset.status;render()});
 $("#q").oninput=renderList;
+$("#mes").onchange=e=>{filtroMes=e.target.value;render()};
 
 function openForm(r){
   editId=r?r.id:null;delArmed=false;
