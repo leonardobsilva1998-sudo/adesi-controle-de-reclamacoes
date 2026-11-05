@@ -117,6 +117,9 @@ h2{font-size:1.3rem;font-weight:600;margin:0 0 14px;letter-spacing:-.01em;text-w
 .docs-list{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;margin-top:4px}
 .docs-list .lbl{font-size:.82rem;color:var(--muted);font-weight:600;letter-spacing:.03em;text-transform:uppercase}
 .docs-list .txt{white-space:pre-line;overflow-wrap:anywhere}
+.solucao{grid-column:1/-1;display:flex;flex-direction:column;gap:3px;margin-top:6px;border-left:3px solid var(--adesi);padding-left:10px}
+.solucao .lbl{font-size:.82rem;color:var(--adesi);font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.solucao .txt{white-space:pre-line;overflow-wrap:anywhere}
 .obs{grid-column:1/-1;color:var(--muted);font-size:.95rem;border-left:3px solid var(--line);padding-left:10px;overflow-wrap:anywhere;white-space:pre-line}
 .files{display:flex;flex-wrap:wrap;gap:8px}
 .file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 12px;font-size:.88rem;color:var(--fg);background:var(--card);max-width:100%}
@@ -169,7 +172,7 @@ label.check input{width:18px;height:18px;margin:0;accent-color:var(--adesi)}
   .relatorio table{width:100%;border-collapse:collapse}
   .relatorio th{text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.03em;color:#333;border-bottom:1.5px solid #333;padding:6px 6px}
   .relatorio td{border-bottom:1px solid #ccc;padding:6px;vertical-align:top}
-  .relatorio td.desc{white-space:pre-line;width:38%}
+  .relatorio td.desc{white-space:pre-line;width:24%}
   .relatorio tr{break-inside:avoid}
   .relatorio thead{display:table-header-group}
 }

@@ -125,6 +125,7 @@ const MARKUP=`
       <label for="f-pedido">Nº do pedido / contato<input id="f-pedido" maxlength="80"></label>
     </div>
     <label for="f-desc">Descrição da reclamação<textarea id="f-desc" maxlength="2000"></textarea></label>
+    <label for="f-solucao">Solução adotada<textarea id="f-solucao" maxlength="2000" placeholder="O que foi feito para resolver esta reclamação"></textarea></label>
     <div class="grid2">
       <label for="f-abertura">Data da reclamação<input id="f-abertura" type="date"></label>
       <label for="f-retorno">Data de retorno ao cliente<input id="f-retorno" type="date"></label>
@@ -256,7 +257,7 @@ function renderList(){
   let list=doMes().slice();
   if(filtroSetor)list=list.filter(r=>aguardandoSetor(r,filtroSetor));
   else if(filtroStatus)list=list.filter(r=>r.status===filtroStatus);
-  if(q)list=list.filter(r=>(r.cliente+" "+(r.pedido||"")+" "+(r.desc||"")).toLowerCase().includes(q));
+  if(q)list=list.filter(r=>(r.cliente+" "+(r.pedido||"")+" "+(r.desc||"")+" "+(r.solucao||"")).toLowerCase().includes(q));
   // Abertas primeiro, ordenadas pela data de retorno mais próxima
   list.sort((a,b)=>(a.status==="concluida")-(b.status==="concluida")||(a.retorno||"9999").localeCompare(b.retorno||"9999"));
   const af=$("#active-filter");af.textContent="";
@@ -272,6 +273,7 @@ function renderList(){
     el.innerHTML=`<div class="who"></div><div class="row-actions"><button class="row-btn arq" type="button" hidden></button><button class="row-btn ed" type="button">Editar</button></div><div class="what"></div><div class="meta">${prazoTag(r)}${r.status!=="concluida"?`<span class="tag${r.status==="aguardando"?" wait":(r.status==="andamento"?" prog":"")}">${STATUS[r.status]}</span>`:""}${setor?`<span class="tag"></span>`:""}${r.abertura?`<span class="tag">Aberta ${fmt(r.abertura)}</span>`:""}</div>`;
     el.querySelector(".who").textContent=r.cliente+(r.pedido?" · "+r.pedido:"");
     el.querySelector(".what").textContent=r.desc||"";
+    if(r.solucao){const w=document.createElement("div");w.className="solucao";const lb=document.createElement("span");lb.className="lbl";lb.textContent="Solução adotada";const t=document.createElement("div");t.className="txt";t.textContent=r.solucao;w.append(lb,t);el.querySelector(".meta").before(w)}
     if(setor)el.querySelector(".meta .tag:nth-child("+(r.status!=="concluida"?3:2)+")").textContent="Setor: "+setor.nome;
     el.querySelector(".row-btn.ed").onclick=()=>openForm(r);
     botaoArquivar(el,r,r.status==="concluida","reclamacoes");
@@ -288,7 +290,7 @@ $("#btn-arq").onclick=()=>{verArq=!verArq;filtroMes="";filtroSetor="";filtroStat
 function openForm(r){
   editId=r?r.id:null;delArmed=false;
   $("#form-title").textContent=r?"Editar reclamação":"Nova reclamação";
-  $("#f-cliente").value=r?.cliente||"";$("#f-pedido").value=r?.pedido||"";$("#f-desc").value=r?.desc||"";
+  $("#f-cliente").value=r?.cliente||"";$("#f-pedido").value=r?.pedido||"";$("#f-desc").value=r?.desc||"";$("#f-solucao").value=r?.solucao||"";
   $("#f-abertura").value=r?.abertura||hoje();$("#f-retorno").value=r?.retorno||"";
   $("#f-status").value=r?.status||"andamento";$("#f-setor").value=r?.setor||"";
   $("#btn-del").hidden=!r;$("#btn-del").textContent="Excluir";
@@ -308,7 +310,7 @@ $("#form").addEventListener("submit",async e=>{
   if(!cliente){$("#f-cliente").focus();toast("Informe o nome do cliente");return}
   const status=$("#f-status").value,setor=$("#f-setor").value;
   if(status==="aguardando"&&!setor){$("#f-setor").focus();toast("Escolha o setor responsável pelo retorno");return}
-  const data={cliente,pedido:$("#f-pedido").value.trim(),desc:$("#f-desc").value.trim(),abertura:$("#f-abertura").value,
+  const data={cliente,pedido:$("#f-pedido").value.trim(),desc:$("#f-desc").value.trim(),solucao:$("#f-solucao").value.trim(),abertura:$("#f-abertura").value,
     retorno:$("#f-retorno").value,status,setor,atualizado:new Date().toISOString()};
   const id=editId||("r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   closeForm();
@@ -434,6 +436,7 @@ function erroMsg(e){
   const m=(e&&e.message)||"";
   if(/row-level security|permission|JWT|not authorized/i.test(m))return"Sua sessão expirou. Entre de novo para editar.";
   if(/Failed to fetch|NetworkError/i.test(m))return"Sem conexão com o servidor. Verifique a internet.";
+  if(/column|schema cache/i.test(m))return"Falta atualizar o banco: rode no Supabase o script mais recente que o Claude enviou.";
   return"Não foi possível concluir. Tente de novo.";
 }
 async function carregarReclamacoes(){
@@ -535,12 +538,12 @@ $("#r-form").addEventListener("submit",e=>{
   [["Total",lista.length],["Em andamento",c("andamento")],["Aguardando retorno",c("aguardando")],["Concluídas",c("concluida")]].forEach(([l,n])=>{const d=document.createElement("div");const b=document.createElement("strong");b.textContent=n;const sp=document.createElement("span");sp.textContent=l;d.append(b,sp);res.appendChild(d)});
   rel.appendChild(res);
   const t=document.createElement("table");
-  t.innerHTML="<thead><tr><th>Cliente</th><th>Pedido</th><th>Descrição</th><th>Abertura</th><th>Retorno</th><th>Situação</th><th>Setor</th></tr></thead><tbody></tbody>";
+  t.innerHTML="<thead><tr><th>Cliente</th><th>Pedido</th><th>Descrição</th><th>Solução adotada</th><th>Abertura</th><th>Retorno</th><th>Situação</th><th>Setor</th></tr></thead><tbody></tbody>";
   const tb=t.querySelector("tbody");
   lista.forEach(r=>{
     const tr=document.createElement("tr");
     const setor=SETORES.find(s=>s.id===r.setor);
-    [r.cliente,r.pedido||"",r.desc||"",fmt(r.abertura),fmt(r.retorno),situacaoTxt(r),setor?setor.nome:""].forEach((v,i)=>{const td=document.createElement("td");td.textContent=v;if(i===2)td.className="desc";tr.appendChild(td)});
+    [r.cliente,r.pedido||"",r.desc||"",r.solucao||"",fmt(r.abertura),fmt(r.retorno),situacaoTxt(r),setor?setor.nome:""].forEach((v,i)=>{const td=document.createElement("td");td.textContent=v;if(i===2||i===3)td.className="desc";tr.appendChild(td)});
     tb.appendChild(tr);
   });
   rel.appendChild(t);
