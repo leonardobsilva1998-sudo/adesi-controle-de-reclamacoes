@@ -8,7 +8,7 @@
   --ok-bg:#dff3e6; --ok-fg:#1e7a43;
   --neutral-bg:#ececef; --neutral-fg:#4a4a50;
   --btn:#111113; --btn-fg:#ffffff; --sel:#111113;
-  --overlay:rgba(17,17,19,.35);--adesi:#66ab35;--adesi-bege:#c2ab8f;--adesi-azul:#2f57a8;--azul-bg:#e1e9f8;--adesi-hover:#5a9a2e;--logo-plate:transparent;--logo-pad:0px;
+  --overlay:rgba(17,17,19,.35);--adesi:#66ab35;--adesi-bege:#c2ab8f;--adesi-bege-forte:#a88d6b;--adesi-azul:#2f57a8;--azul-bg:#e1e9f8;--adesi-hover:#5a9a2e;--logo-plate:transparent;--logo-pad:0px;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
@@ -151,6 +151,42 @@ textarea{min-height:90px;resize:vertical}
 .pubnote{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .pubnote .chip{border-color:var(--adesi-azul);color:var(--adesi-azul)}
 
+/* ===== Gráficos ===== */
+.g-filtros{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:flex-end;margin-bottom:10px}
+.g-filtros label:not(.check){min-width:150px;flex:1 1 150px}
+.g-filtros label.check{padding-bottom:10px}
+.g-resumo{margin:0 0 14px}
+.graficos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+@media (max-width:760px){.graficos{grid-template-columns:1fr}}
+.g-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.g-card h3{margin:0;font-size:1.1rem;font-weight:600}
+.g-sub{margin:-6px 0 4px;color:var(--muted);font-size:.9rem}
+.hbars{display:flex;flex-direction:column;gap:10px}
+.hbar{display:grid;grid-template-columns:minmax(90px,38%) minmax(0,1fr) auto;align-items:center;gap:12px;font-size:.95rem}
+.hb-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-trilho{height:14px;display:block}
+.hb-barra{display:block;height:100%;border-radius:0 4px 4px 0;min-width:2px}
+.hb-barra.zero{min-width:0}
+.hb-valor{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.9rem}
+.stack{display:flex;gap:2px;height:22px}
+.stack .seg{display:block;height:100%;min-width:4px}
+.stack .seg:first-child{border-radius:4px 0 0 4px}
+.stack .seg:last-child{border-radius:0 4px 4px 0}
+.stack .seg:only-child{border-radius:4px}
+.legenda{display:flex;flex-direction:column;gap:8px}
+.leg-item{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:.95rem}
+.sw{width:12px;height:12px;border-radius:3px;display:block}
+.leg-valor{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9rem}
+.vbars{display:flex;gap:6px;align-items:stretch;height:180px;padding-top:4px;border-bottom:1px solid var(--line)}
+.vbar{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.vb-valor{font-size:.85rem;color:var(--fg);font-variant-numeric:tabular-nums;min-height:1.1em}
+.vb-area{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.vb-barra{display:block;width:min(100%,34px);border-radius:4px 4px 0 0;background:var(--adesi)}
+.vb-barra.zero{height:0!important}
+.vb-rot{font-size:.75rem;color:var(--muted);white-space:nowrap;margin-bottom:-22px;transform:translateY(4px)}
+.vbars{margin-bottom:22px}
+.hbar:hover .hb-nome,.vbar:hover .vb-rot{color:var(--fg);font-weight:600}
+
 /* ===== Relatório para impressão ===== */
 .chip.print-btn{border-color:var(--adesi);color:var(--adesi)}
 label.check{flex-direction:row;align-items:center;gap:10px;color:var(--fg);font-weight:500;cursor:pointer}
@@ -174,5 +210,8 @@ label.check input{width:18px;height:18px;margin:0;accent-color:var(--adesi)}
   .relatorio td{border-bottom:1px solid #ccc;padding:6px;vertical-align:top}
   .relatorio td.desc{white-space:pre-line;width:24%}
   .relatorio tr{break-inside:avoid}
+  .graficos.impresso{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .graficos.impresso .g-card{border:1px solid #ccc;background:#fff;break-inside:avoid;padding:14px 16px}
+  .graficos.impresso *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .relatorio thead{display:table-header-group}
 }

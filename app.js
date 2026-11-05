@@ -40,6 +40,7 @@ const MARKUP=`
   <nav class="tabs" role="tablist" aria-label="Seções">
     <button class="tab" role="tab" id="tab-rec" data-view="reclamacoes" aria-selected="true" type="button">Reclamações</button>
     <button class="tab" role="tab" id="tab-doc" data-view="documentacoes" aria-selected="false" type="button">Documentações</button>
+    <button class="tab" role="tab" id="tab-graf" data-view="graficos" aria-selected="false" type="button">Gráficos</button>
   </nav>
   <p class="note pubnote" id="pub-note" hidden></p>
 
@@ -70,6 +71,26 @@ const MARKUP=`
     <div class="items" id="items"></div>
     <p class="note" id="sync-note"></p>
   </section>
+  </div>
+
+  <div class="view" id="view-graficos" hidden>
+    <section aria-labelledby="h-graf">
+      <div class="listhead">
+        <h2 id="h-graf">Indicadores de reclamações</h2>
+        <div class="filters">
+          <button class="chip print-btn" id="g-print" type="button">Imprimir gráficos</button>
+        </div>
+      </div>
+      <div class="g-filtros">
+        <label for="g-empresa">Empresa<select id="g-empresa"></select></label>
+        <label for="g-setor">Setor<select id="g-setor"></select></label>
+        <label for="g-mes">Mês<select id="g-mes"></select></label>
+        <label for="g-ano">Ano<select id="g-ano"></select></label>
+        <label class="check" for="g-arq"><input id="g-arq" type="checkbox"> Incluir arquivadas</label>
+      </div>
+      <p class="note g-resumo" id="g-resumo"></p>
+      <div class="graficos" id="graficos"></div>
+    </section>
   </div>
 
   <div class="view" id="view-documentacoes" hidden>
@@ -280,7 +301,7 @@ function renderList(){
     box.appendChild(el);
   });
 }
-function render(){atualizarMeses();renderStats();renderSectors();renderList()}
+function render(){atualizarMeses();renderStats();renderSectors();renderList();if(typeof renderGraficos==="function"&&!$("#view-graficos").hidden)renderGraficos()}
 
 document.querySelectorAll(".stat[data-status]").forEach(b=>b.onclick=()=>{filtroSetor="";filtroStatus=filtroStatus===b.dataset.status?"":b.dataset.status;render()});
 $("#q").oninput=renderList;
@@ -339,12 +360,14 @@ async function excluir(id){
 // ================= Abas =================
 let aba="reclamacoes";
 function mostrarAba(v){
-  aba=v==="documentacoes"?"documentacoes":"reclamacoes";
+  aba=v==="documentacoes"?"documentacoes":(v==="graficos"?"graficos":"reclamacoes");
   document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",String(t.dataset.view===aba)));
   $("#view-reclamacoes").hidden=aba!=="reclamacoes";
   $("#view-documentacoes").hidden=aba!=="documentacoes";
+  $("#view-graficos").hidden=aba!=="graficos";
+  if(aba==="graficos")renderGraficos();
   $("#btn-new").textContent=aba==="documentacoes"?"+ Nova solicitação":"+ Nova reclamação";
-  document.querySelector(".head h1").textContent=aba==="documentacoes"?"Controle de Documentos":"Controle de Reclamações";
+  document.querySelector(".head h1").textContent=aba==="documentacoes"?"Controle de Documentos":(aba==="graficos"?"Indicadores de Reclamações":"Controle de Reclamações");
 }
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{mostrarAba(t.dataset.view);try{history.replaceState(null,"","#"+aba)}catch{location.hash=aba}});
 window.addEventListener("hashchange",()=>mostrarAba(location.hash.slice(1)));
@@ -552,4 +575,102 @@ $("#r-form").addEventListener("submit",e=>{
   const imprimir=()=>setTimeout(()=>window.print(),50);
   if(img.complete)imprimir();else{img.onload=imprimir;img.onerror=imprimir}
 });
+
+// ================= Gráficos =================
+var COR_STATUS={andamento:"var(--adesi-azul)",aguardando:"var(--late-fg)",concluida:"var(--adesi)"};
+var gPrep=false;
+function gOpcoes(){
+  const keep=id=>$(id).value;
+  const v={e:keep("#g-empresa"),s:keep("#g-setor"),m:keep("#g-mes"),a:keep("#g-ano")};
+  const empresas=[...new Set(items.map(r=>r.cliente).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  opcoes($("#g-empresa"),empresas.map(c=>[c,c]),"Todas as empresas");
+  opcoes($("#g-setor"),SETORES.map(x=>[x.id,x.nome]).concat([["-","Sem setor"]]),"Todos os setores");
+  opcoes($("#g-mes"),MESES.map((n,i)=>[String(i+1).padStart(2,"0"),n]),"Todos os meses");
+  const anos=[...new Set(items.map(r=>(r.abertura||"").slice(0,4)).filter(Boolean))].sort().reverse();
+  opcoes($("#g-ano"),anos.map(a=>[a,a]),"Todos os anos");
+  ["#g-empresa","#g-setor","#g-mes","#g-ano"].forEach((id,i)=>{const x=[v.e,v.s,v.m,v.a][i];if([...$(id).options].some(o=>o.value===x))$(id).value=x});
+}
+function gFiltrados(){
+  const e=$("#g-empresa").value,st=$("#g-setor").value,m=$("#g-mes").value,a=$("#g-ano").value,arq=$("#g-arq").checked;
+  return items.filter(r=>(arq||!r.arquivado)&&(!e||r.cliente===e)&&(!st||(st==="-"?!r.setor:r.setor===st))&&(!m||(r.abertura||"").slice(5,7)===m)&&(!a||(r.abertura||"").slice(0,4)===a));
+}
+function gDescricaoFiltros(){
+  const t=id=>{const o=$(id).selectedOptions[0];return o?o.textContent:""};
+  return [t("#g-empresa"),t("#g-setor"),t("#g-mes"),t("#g-ano")].concat($("#g-arq").checked?["inclui arquivadas"]:[]).join(" · ");
+}
+function pct(n,t){return t?Math.round(n/t*100):0}
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function cartao(titulo,sub){const c=el("section","g-card");c.appendChild(el("h3",null,titulo));if(sub)c.appendChild(el("p","g-sub",sub));return c}
+function barrasH(linhas,total,cor){
+  const w=el("div","hbars");const max=Math.max(1,...linhas.map(l=>l[1]));
+  linhas.forEach(([nome,n])=>{
+    const r=el("div","hbar");r.title=nome+": "+n+" ("+pct(n,total)+"%)";
+    r.appendChild(el("span","hb-nome",nome));
+    const trilho=el("span","hb-trilho");const b=el("span","hb-barra");b.style.width=(n/max*100)+"%";b.style.background=cor;if(!n)b.classList.add("zero");trilho.appendChild(b);r.appendChild(trilho);
+    r.appendChild(el("span","hb-valor",n+" · "+pct(n,total)+"%"));
+    w.appendChild(r);
+  });
+  return w;
+}
+function desenharGraficos(box,lista){
+  box.textContent="";
+  if(!lista.length){box.appendChild(el("div","empty","Nenhuma reclamação com esses filtros."));return}
+  const total=lista.length,abertas=lista.filter(r=>r.status!=="concluida");
+  // 1. Setores (em aberto agora)
+  const c1=cartao("Em aberto por setor","Reclamações em andamento ou aguardando retorno, por setor responsável · "+abertas.length+" em aberto");
+  const ls=SETORES.map(x=>[x.nome,abertas.filter(r=>r.setor===x.id).length]);
+  const sem=abertas.filter(r=>!r.setor).length;if(sem)ls.push(["Sem setor",sem]);
+  c1.appendChild(barrasH(ls,abertas.length,"var(--adesi-azul)"));box.appendChild(c1);
+  // 2. Situação (barra empilhada)
+  const c2=cartao("Situação das reclamações",total+(total===1?" reclamação":" reclamações")+" no filtro");
+  const st=[["andamento","Em andamento"],["aguardando","Aguardando retorno"],["concluida","Concluídas"]].map(([k,n])=>[k,n,lista.filter(r=>r.status===k).length]);
+  const pilha=el("div","stack");
+  st.forEach(([k,n,q])=>{if(!q)return;const seg=el("span","seg");seg.style.flexGrow=q;seg.style.background=COR_STATUS[k];seg.title=n+": "+q+" ("+pct(q,total)+"%)";pilha.appendChild(seg)});
+  c2.appendChild(pilha);
+  const leg=el("div","legenda");
+  st.forEach(([k,n,q])=>{const i=el("div","leg-item");const sw=el("span","sw");sw.style.background=COR_STATUS[k];i.appendChild(sw);i.appendChild(el("span","leg-nome",n));i.appendChild(el("span","leg-valor",q+" · "+pct(q,total)+"%"));leg.appendChild(i)});
+  c2.appendChild(leg);box.appendChild(c2);
+  // 3. Por mês
+  const c3=cartao("Reclamações por mês","Pela data da reclamação");
+  const pm={};lista.forEach(r=>{const m=mesDe(r);if(m)pm[m]=(pm[m]||0)+1});
+  const meses=Object.keys(pm).sort();
+  if(meses.length){
+    let todos=[];const [y0,m0]=meses[0].split("-").map(Number),[y1,m1]=meses[meses.length-1].split("-").map(Number);
+    for(let y=y0,m=m0;y<y1||(y===y1&&m<=m1);m++){if(m>12){m=1;y++;if(y>y1||(y===y1&&m>m1))break}todos.push(y+"-"+String(m).padStart(2,"0"))}
+    todos=todos.slice(-12);
+    const max=Math.max(1,...todos.map(m=>pm[m]||0));
+    const col=el("div","vbars");
+    todos.forEach(m=>{const n=pm[m]||0;const c=el("div","vbar");c.title=nomeMes(m)+": "+n;
+      c.appendChild(el("span","vb-valor",n?String(n):""));
+      const area=el("span","vb-area");const b=el("span","vb-barra");b.style.height=(n/max*100)+"%";if(!n)b.classList.add("zero");area.appendChild(b);c.appendChild(area);
+      c.appendChild(el("span","vb-rot",MESES[+m.slice(5)-1].slice(0,3)+"/"+m.slice(2,4)));col.appendChild(c)});
+    c3.appendChild(col);
+  }else c3.appendChild(el("p","g-sub","Sem datas de reclamação para mostrar."));
+  box.appendChild(c3);
+  // 4. Por empresa
+  const c4=cartao("Reclamações por empresa","As 8 empresas com mais reclamações no filtro");
+  const pe={};lista.forEach(r=>{pe[r.cliente]=(pe[r.cliente]||0)+1});
+  const le=Object.entries(pe).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],"pt-BR"));
+  const top=le.slice(0,8);if(le.length>8)top.push(["Outras ("+(le.length-8)+")",le.slice(8).reduce((s,x)=>s+x[1],0)]);
+  c4.appendChild(barrasH(top,total,"var(--adesi-bege-forte)"));box.appendChild(c4);
+}
+function renderGraficos(){
+  if(!gPrep){gPrep=true;["#g-empresa","#g-setor","#g-mes","#g-ano","#g-arq"].forEach(id=>$(id).addEventListener("change",renderGraficos))}
+  gOpcoes();
+  const lista=gFiltrados();
+  $("#g-resumo").textContent=gDescricaoFiltros();
+  desenharGraficos($("#graficos"),lista);
+}
+$("#g-print").onclick=()=>{
+  const lista=gFiltrados();
+  const rel=$("#relatorio");rel.textContent="";
+  const h=el("header","rel-head");
+  h.innerHTML='<img src="logo.png" alt="Adesi Coating"><div><h1>Indicadores de Reclamações</h1><p class="rel-filtros"></p><p class="rel-data"></p></div>';
+  h.querySelector(".rel-filtros").textContent=gDescricaoFiltros();
+  const agora=new Date();h.querySelector(".rel-data").textContent="Gerado em "+agora.toLocaleDateString("pt-BR")+" às "+agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  rel.appendChild(h);
+  const g=el("div","graficos impresso");rel.appendChild(g);desenharGraficos(g,lista);
+  const img=h.querySelector("img");const imprimir=()=>setTimeout(()=>window.print(),50);
+  if(img.complete)imprimir();else{img.onload=imprimir;img.onerror=imprimir}
+};
 
